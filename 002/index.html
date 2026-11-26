@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>川と舞</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
@@ -68,8 +71,8 @@
 
   .cover-inner,
   .ending-inner {
-    writing-mode: vertical-rl;
-    text-orientation: upright;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
     opacity: 0;
     transform: translateY(20px);
     transition: opacity 1.2s ease, transform 1.4s cubic-bezier(.22,1,.36,1);
@@ -82,7 +85,7 @@
   }
 
   h1 {
-    margin: 0 0 0 1.8em;
+    margin: 0;
     font-size: clamp(28px, 5.5vw, 54px);
     font-weight: 400;
     letter-spacing: .28em;
@@ -104,6 +107,7 @@
     position: absolute;
     left: 50%;
     top: 50%;
+    width: min(calc(100% - 56px), 1000px);
     display: grid;
     place-items: center;
     transform: translate(-50%, calc(-50% + 28px));
@@ -112,13 +116,17 @@
 
   .poem-line p {
     margin: 0;
-    writing-mode: vertical-rl;
-    text-orientation: upright;
-    white-space: nowrap;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    white-space: normal;
+    text-align: center;
+    line-break: strict;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
     font-size: clamp(18px, 3.8vw, 30px);
     font-weight: 400;
     letter-spacing: .10em;
-    line-height: 1;
+    line-height: 1.9;
     opacity: .04;
     filter: blur(7px);
     transition:
@@ -146,12 +154,12 @@
   }
 
   .ending-inner {
-    writing-mode: vertical-rl;
+    writing-mode: horizontal-tb;
     text-align: center;
   }
 
   .ending-title {
-    margin: 0 0 0 1.5em;
+    margin: 0;
     font-size: clamp(22px, 4.5vw, 38px);
     font-weight: 400;
     letter-spacing: .24em;
@@ -165,7 +173,7 @@
     color: rgba(219,234,254,.34);
     font: 10px/1 -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: .22em;
-    writing-mode: vertical-rl;
+    writing-mode: horizontal-tb;
     transition: opacity .5s ease;
     pointer-events: none;
   }
@@ -177,7 +185,7 @@
   @media (max-width: 640px) {
     .poem-line p {
       font-size: clamp(17px, 5vw, 24px);
-      line-height: 1;
+      line-height: 1.9;
     }
   }
 
