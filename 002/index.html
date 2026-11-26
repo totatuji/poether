@@ -234,6 +234,18 @@
       filter: none;
     }
   }
+
+  /* Keep document stationary: native scrolling happens only in the reader. */
+  html, body { width:100%; height:100%; overflow:hidden; overscroll-behavior:none; }
+  body { position:fixed; inset:0; }
+  #reader { position:fixed; inset:0; z-index:1; overflow-y:auto; overflow-x:hidden;
+    overscroll-behavior-y:none; overflow-anchor:none; -webkit-overflow-scrolling:touch;
+    touch-action:pan-y; scrollbar-width:none; scroll-behavior:auto; }
+  #reader::-webkit-scrollbar { display:none; }
+  .cover,.ending,.poem-line { min-height:var(--page-height,100svh); }
+  #particle-stage { height:100vh; height:100lvh; }
+  .poem-line .line-inner { transform:translate(-50%,-50%); }
+  .poem-line.is-past .line-inner { transform:translate(-50%,-50%); }
 </style>
 </head>
 <body>
@@ -241,9 +253,9 @@
   <canvas id="canvas"></canvas>
 </div>
 
-<div class="scroll-hint">SCROLL</div>
 
-<main class="poem">
+
+<div id="reader"><main class="poem">
   <section class="cover">
     <div class="cover-inner">
       <h1>川と舞</h1>
@@ -300,7 +312,7 @@
       <div>DESIGN / ILLUSTRATION — TOTA TSUJI</div>
     </div>
   </section>
-</main>
+</main></div>
 
 <script>
 (() => {
@@ -309,6 +321,21 @@
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d", { alpha: false });
   const COUNT = 200;
+  const reader = document.getElementById('reader');
+  let pageWidth=0, pageHeight=0;
+  function setPageHeight() {
+    const w=document.documentElement.clientWidth;
+    if(pageHeight && w===pageWidth) return;
+    const ratio=pageHeight ? reader.scrollTop/pageHeight : 0;
+    const probe=document.createElement('div');
+    probe.style.cssText='position:fixed;visibility:hidden;height:100vh;height:100svh;pointer-events:none';
+    document.body.appendChild(probe);
+    pageHeight=probe.getBoundingClientRect().height || reader.clientHeight;
+    probe.remove(); pageWidth=w;
+    document.documentElement.style.setProperty('--page-height',pageHeight+'px');
+    reader.scrollTop=ratio*pageHeight;
+  }
+  setPageHeight();
 
   const sequences = [
     { name: "SCATTER",  transition: 3400, hold: 1500, overshoot: .015 },
@@ -321,7 +348,11 @@
     { name: "RAIN",     transition: 2800, hold: 180,  overshoot: 0 },
     { name: "BOUNCE",   transition: 6200, hold: 0,    overshoot: 0 },
     { name: "BOTTOM",   transition: 1900, hold: 1400, overshoot: .04 },
-    { name: "TOP",      transition: 3200, hold: 1700, overshoot: .018 }
+    { name: "TOP",      transition: 3200, hold: 1700, overshoot: .018 },
+    { name: "FOLLOW", transition: 2300, hold: 8000, overshoot: .01 },
+    { name: "EXIT_ALL", transition: 1700, hold: 500, overshoot: 0 },
+    { name: "EDGE_BOUNCE", transition: 8500, hold: 0, overshoot: 0 },
+    { name: "ONE", transition: 3400, hold: 2000, overshoot: 0 }
   ];
 
   const particles = [];
@@ -443,6 +474,15 @@
     const cy = height/2;
     const base = Math.min(width,height);
 
+    if (name === 'FOLLOW') {
+      return bestCandidatePoints(COUNT, () => ({x:cx+random(-base*.30,base*.30),y:cy+random(-base*.12,base*.12)}),10);
+    }
+    if (name === 'ONE') return particles.map(() => ({x:cx,y:cy}));
+    if (name === 'EDGE_BOUNCE') return particles.map(p=>({x:p.x,y:p.y}));
+    if (name === 'EXIT_ALL') return particles.map((p,i)=>{
+      const edge=i%4;
+      return edge===0?{x:random(0,width),y:-90}:edge===1?{x:width+90,y:random(0,height)}:edge===2?{x:random(0,width),y:height+90}:{x:-90,y:random(0,height)};
+    });
     if (name === "SCATTER") {
       return bestCandidatePoints(COUNT, () => ({
         x: random(margin,width-margin),
@@ -572,6 +612,16 @@
     }
 
     const targets = createTargets(shapeIndex);
+    if(name==='EDGE_BOUNCE') {
+      particles.forEach((p,i)=>{
+        const edge=i%4, speed=random(3.5,8.5), cross=random(-4,4);
+        p.x=edge===1?width+70:edge===3?-70:random(15,Math.max(16,width-15));
+        p.y=edge===0?-70:edge===2?height+70:random(15,Math.max(16,height-15));
+        p.vx=edge===1?-speed:edge===3?speed:cross;
+        p.vy=edge===0?speed:edge===2?-speed:cross;
+        p.entered=false; p.wait=random(0,850); p.pushX=p.pushY=0;
+      });
+    }
 
     if (name === "BOUNCE" && !immediate) {
       particles.forEach((p, i) => {
@@ -603,7 +653,36 @@
     const dt=Math.min((now-lastFrame)/16.667,2);
     lastFrame=now;
 
-    if (name === "BOUNCE") {
+    if (name === 'EDGE_BOUNCE') {
+      particles.forEach(p=>{
+        if(elapsed<p.wait) return;
+        p.x+=p.vx*dt; p.y+=p.vy*dt;
+        const r=p.r+2;
+        if(!p.entered && p.x>=r && p.x<=width-r && p.y>=r && p.y<=height-r) p.entered=true;
+        if(p.entered){
+          if(p.x<r){p.x=r;p.vx=Math.abs(p.vx);} else if(p.x>width-r){p.x=width-r;p.vx=-Math.abs(p.vx);}
+          if(p.y<r){p.y=r;p.vy=Math.abs(p.vy);} else if(p.y>height-r){p.y=height-r;p.vy=-Math.abs(p.vy);}
+        } else {
+          if(p.x<r && p.vx<0) p.vx=Math.abs(p.vx);
+          if(p.x>width-r && p.vx>0) p.vx=-Math.abs(p.vx);
+          if(p.y<r && p.vy<0) p.vy=Math.abs(p.vy);
+          if(p.y>height-r && p.vy>0) p.vy=-Math.abs(p.vy);
+        }
+      });
+      if(elapsed>sequence.transition) setShape(shapeIndex+1);
+    } else if(name==='FOLLOW') {
+      const center=reader.clientHeight/2;
+      const index=clamp(Math.round((reader.scrollTop+center)/pageHeight-.5),0,observed.length-1);
+      const target=observed[index].querySelector('p, h1, .credits') || observed[index];
+      const rect=target.getBoundingClientRect();
+      const y=rect.top+rect.height/2;
+      const x=rect.left+rect.width/2;
+      particles.forEach(p=>{
+        p.x+=(p.tx-width/2+x-p.x)*Math.min(.12,.045*dt);
+        p.y+=(p.ty-height/2+y-p.y)*Math.min(.12,.045*dt);
+      });
+      if(elapsed>sequence.transition+sequence.hold) setShape(shapeIndex+1);
+    } else if (name === "BOUNCE") {
       particles.forEach(p => {
         p.vy += .18 * dt;
         p.x += p.vx * dt;
@@ -639,7 +718,7 @@
       const global=clamp(elapsed/sequence.transition,0,1);
       particles.forEach(p => {
         const available=Math.max(.25,1-p.delay);
-        const local=clamp((global-p.delay)/available/p.durationScale,0,1);
+        const local=(name==='EXIT_ALL'||name==='ONE') ? clamp(global,0,1) : clamp((global-p.delay)/available/p.durationScale,0,1);
         const smooth=easeInOutCubic(local);
         const back=easeOutBack(local,sequence.overshoot*8);
         const eased=name === "RAIN" ? local*local : lerp(smooth,back,.38+p.curve*.22);
@@ -662,6 +741,7 @@
 
     particles.forEach(p => {
       p.pushX*=.88; p.pushY*=.88;
+      if(name==='ONE'||name==='EXIT_ALL'||name==='EDGE_BOUNCE'||name==='FOLLOW') {p.pushX=p.pushY=0;return;}
       if (pointer.strength>.002) {
         const dx=p.x-pointer.x, dy=p.y-pointer.y;
         const distance=Math.hypot(dx,dy)||1;
@@ -692,8 +772,8 @@
     particles.forEach(p => {
       const time=now*.001*p.driftSpeed;
       const breathe=1+Math.sin(time*1.35+p.pulse)*.04;
-      const driftX=Math.sin(time*.72+p.pulse)*(.4+p.mass*.35);
-      const driftY=Math.cos(time*.61+p.pulse*1.2)*(.4+p.mass*.35);
+      const driftX=sequences[shapeIndex].name==='ONE'?0:Math.sin(time*.72+p.pulse)*(.4+p.mass*.35);
+      const driftY=sequences[shapeIndex].name==='ONE'?0:Math.cos(time*.61+p.pulse*1.2)*(.4+p.mass*.35);
       const nx=clamp(p.x/Math.max(width,1),0,1);
       const ny=clamp(p.y/Math.max(height,1),0,1);
       const wave=Math.sin(t*3.2+nx*4.6-ny*3.2+p.pulse)*8;
@@ -730,11 +810,11 @@
   }
 
   window.addEventListener("pointermove", e => {
-    movePointer(e.clientX,e.clientY,e.pointerType==="touch" ? 1.2 : .82);
+    if(e.pointerType!=="touch") movePointer(e.clientX,e.clientY,.82);
   }, {passive:true});
 
   window.addEventListener("pointerdown", e => {
-    movePointer(e.clientX,e.clientY,e.pointerType==="touch" ? 1.55 : 1.15);
+    if(e.pointerType!=="touch") movePointer(e.clientX,e.clientY,1.15);
   }, {passive:true});
 
   window.addEventListener("pointerup", () => pointer.targetStrength=0, {passive:true});
@@ -756,16 +836,14 @@
         el.classList.toggle("is-past",rect.top<0);
       }
     });
-  }, {threshold:[.15,.42,.68]});
+  }, {root:reader,threshold:[.15,.42,.68]});
 
   observed.forEach(el=>observer.observe(el));
 
-  window.addEventListener("scroll", () => {
-    document.body.classList.toggle("has-scrolled",window.scrollY>30);
-  }, {passive:true});
 
-  window.addEventListener("resize",resize);
-  window.addEventListener("orientationchange",()=>setTimeout(resize,120));
+
+  window.addEventListener("resize",()=>{setPageHeight();resize();});
+  window.addEventListener("orientationchange",()=>setTimeout(()=>{setPageHeight();resize();},120));
 
 
   resize();
