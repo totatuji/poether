@@ -18,7 +18,8 @@
 
   html {
     background: #061126;
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
+    overflow-anchor: none;
   }
 
   body {
@@ -36,7 +37,7 @@
     z-index: 0;
     width: 100%;
     height: 100vh;
-    height: 100dvh;
+    height: 100lvh;
     overflow: hidden;
     pointer-events: none;
     background: #061126;
@@ -107,7 +108,8 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: min(calc(100% - 56px), 1000px);
+    width: calc(100% - 32px);
+    max-width: 1000px;
     display: grid;
     place-items: center;
     transform: translate(-50%, calc(-50% + 28px));
@@ -115,14 +117,15 @@
   }
 
   .poem-line p {
+    width: 100%;
     margin: 0;
     writing-mode: horizontal-tb;
     text-orientation: mixed;
-    white-space: normal;
+    white-space: nowrap;
     text-align: center;
     line-break: strict;
-    overflow-wrap: anywhere;
-    text-wrap: pretty;
+    overflow-wrap: normal;
+    word-break: keep-all;
     font-size: clamp(14.4px, 3.04vw, 24px);
     font-weight: 400;
     letter-spacing: .10em;
@@ -185,7 +188,7 @@
   @media (max-width: 640px) {
     .cover h1 { font-size: clamp(25.2px, 4.95vw, 48.6px); }
     .poem-line p {
-      font-size: clamp(15.3px, 4.5vw, 21.6px);
+      font-size: min(clamp(15.3px, 4.5vw, 21.6px), calc((100vw - 32px) / 15.4));
       line-height: 1.9;
     }
   }
@@ -386,10 +389,16 @@
   }
 
   function resize() {
-    const viewport = window.visualViewport;
-    width = Math.round(viewport ? viewport.width : document.documentElement.clientWidth);
-    height = Math.round(viewport ? viewport.height : document.documentElement.clientHeight);
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const stage = document.getElementById("particle-stage");
+    const nextWidth = Math.round(stage.clientWidth);
+    const nextHeight = Math.round(stage.clientHeight);
+    const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (!nextWidth || !nextHeight) return;
+    if (nextWidth === width && nextHeight === height && nextDpr === dpr) return;
+    const oldWidth = width, oldHeight = height;
+    width = nextWidth;
+    height = nextHeight;
+    dpr = nextDpr;
 
     canvas.width = Math.round(width*dpr);
     canvas.height = Math.round(height*dpr);
@@ -398,7 +407,13 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     if (!particles.length) createParticles();
-    else setShape(shapeIndex, true);
+    else {
+      const sx = width / (oldWidth || width), sy = height / (oldHeight || height);
+      for (const p of particles) {
+        for (const k of ["x", "sx", "tx", "pushX", "vx"]) p[k] *= sx;
+        for (const k of ["y", "sy", "ty", "pushY", "vy"]) p[k] *= sy;
+      }
+    }
   }
 
   function createParticles() {
@@ -732,7 +747,7 @@
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       const el=entry.target;
-      if (entry.isIntersecting && entry.intersectionRatio>.42) {
+      if (entry.isIntersecting && entry.intersectionRatio>=.42) {
         el.classList.add("is-visible");
         el.classList.remove("is-past");
       } else {
@@ -751,7 +766,7 @@
 
   window.addEventListener("resize",resize);
   window.addEventListener("orientationchange",()=>setTimeout(resize,120));
-  if (window.visualViewport) window.visualViewport.addEventListener("resize",resize);
+
 
   resize();
   requestAnimationFrame(loop);
